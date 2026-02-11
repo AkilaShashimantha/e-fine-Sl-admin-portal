@@ -1,14 +1,15 @@
 // User & Authentication Types
-export interface User {
+export interface AdminUser {
     id: string;
     name: string;
     email: string;
     role: 'super_admin' | 'admin_officer' | 'finance_officer';
     phone?: string;
     profileImage?: string;
+    isTwoFactorEnabled?: boolean;
 }
 
-export interface LoginData {
+export interface LoginCredentials {
     email: string;
     password: string;
 }
@@ -16,7 +17,7 @@ export interface LoginData {
 export interface AuthResponse {
     success: boolean;
     token: string;
-    user: User;
+    user: AdminUser;
 }
 
 // Driver Types

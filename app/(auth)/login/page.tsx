@@ -1,106 +1,139 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { toast } from 'sonner';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Shield, Lock } from 'lucide-react';
+import Image from 'next/image';
 
 export default function LoginPage() {
-    const router = useRouter();
-    const { login } = useAuth();
+    const { login, loading } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [loading, setLoading] = useState(false);
+    const [totpToken, setTotpToken] = useState('');
+    const [showTwoFactor, setShowTwoFactor] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setIsSubmitting(true);
 
-        if (!email || !password) {
-            toast.error('Please fill in all fields');
-            return;
-        }
-
-        setLoading(true);
         try {
-            await login(email, password);
-            toast.success('Login successful!');
-            router.push('/');
-        } catch (error: any) {
-            toast.error(error.message || 'Login failed');
+            const result = await login({ email, password }, showTwoFactor ? totpToken : undefined);
+
+            if (result && typeof result === 'object' && 'requireTwoFactor' in result && result.requireTwoFactor) {
+                setShowTwoFactor(true);
+            }
         } finally {
-            setLoading(false);
+            setIsSubmitting(false);
         }
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-blue-50 p-4">
-            <Card className="w-full max-w-md shadow-xl">
-                <CardHeader className="space-y-3 text-center">
-                    <div className="mx-auto w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">
-                        <svg
-                            className="w-10 h-10 text-white"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                            />
-                        </svg>
+        <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+            <Card className="w-full max-w-md shadow-lg">
+                <CardHeader className="text-center space-y-2">
+                    <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-2">
+                        {showTwoFactor ? (
+                            <Lock className="h-8 w-8 text-blue-600" />
+                        ) : (
+                            <Shield className="h-8 w-8 text-blue-600" />
+                        )}
                     </div>
-                    <CardTitle className="text-2xl font-bold">e-Fine SL Admin</CardTitle>
+                    <CardTitle className="text-2xl font-bold text-blue-900">
+                        {showTwoFactor ? 'Two-Factor Authentication' : 'Admin Portal Login'}
+                    </CardTitle>
                     <CardDescription>
-                        Sign in to access the admin portal
+                        {showTwoFactor
+                            ? 'Enter the 6-digit code from your authenticator app'
+                            : 'Sign in to access the e-Fine SL dashboard'}
                     </CardDescription>
                 </CardHeader>
-                <form onSubmit={handleSubmit}>
-                    <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="email">Email</Label>
-                            <Input
-                                id="email"
-                                type="email"
-                                placeholder="admin@efine-sl.com"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                disabled={loading}
-                                required
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="password">Password</Label>
-                            <Input
-                                id="password"
-                                type="password"
-                                placeholder="Enter your password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                disabled={loading}
-                                required
-                            />
-                        </div>
-                    </CardContent>
-                    <CardFooter className="flex flex-col space-y-4">
+                <CardContent>
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        {!showTwoFactor ? (
+                            <>
+                                <div className="space-y-2">
+                                    <Label htmlFor="email">Email Address</Label>
+                                    <Input
+                                        id="email"
+                                        type="email"
+                                        placeholder="admin@efine-sl.com"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        required
+                                        disabled={isSubmitting}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="password">Password</Label>
+                                    <Input
+                                        id="password"
+                                        type="password"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        required
+                                        disabled={isSubmitting}
+                                    />
+                                </div>
+                            </>
+                        ) : (
+                            <div className="space-y-2 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                                <Label htmlFor="totp">Authentication Code</Label>
+                                <div className="relative">
+                                    <Input
+                                        id="totp"
+                                        type="text"
+                                        placeholder="000000"
+                                        value={totpToken}
+                                        onChange={(e) => {
+                                            const val = e.target.value.replace(/[^0-9]/g, '');
+                                            if (val.length <= 6) setTotpToken(val);
+                                        }}
+                                        className="text-center text-2xl tracking-widest"
+                                        maxLength={6}
+                                        autoFocus
+                                        required
+                                        disabled={isSubmitting}
+                                    />
+                                </div>
+                                <p className="text-xs text-center text-gray-500">
+                                    Open your Google Authenticator or Authy app
+                                </p>
+                            </div>
+                        )}
+
                         <Button
                             type="submit"
                             className="w-full bg-blue-600 hover:bg-blue-700"
-                            disabled={loading}
+                            disabled={isSubmitting || loading}
                         >
-                            {loading ? 'Signing in...' : 'Sign In'}
+                            {isSubmitting ? 'Verifying...' : (showTwoFactor ? 'Verify Login' : 'Sign In')}
                         </Button>
-                        <div className="text-sm text-center text-gray-500">
-                            <p>Default credentials:</p>
-                            <p className="font-mono text-xs mt-1">admin@efine-sl.com / admin123</p>
-                        </div>
-                    </CardFooter>
-                </form>
+
+                        {showTwoFactor && (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                className="w-full text-sm text-gray-500"
+                                onClick={() => {
+                                    setShowTwoFactor(false);
+                                    setTotpToken('');
+                                }}
+                            >
+                                Back to Login
+                            </Button>
+                        )}
+                    </form>
+                </CardContent>
+                <CardFooter className="flex justify-center border-t py-4">
+                    <p className="text-xs text-gray-500">
+                        &copy; {new Date().getFullYear()} Sri Lanka Police Traffic Division
+                    </p>
+                </CardFooter>
             </Card>
         </div>
     );

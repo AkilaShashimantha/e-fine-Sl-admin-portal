@@ -1,14 +1,14 @@
 import api from './api';
-import { LoginData, AuthResponse, User } from '@/types';
+import { LoginCredentials, AuthResponse, AdminUser } from '@/types';
 
 // Admin login
-export async function login(credentials: LoginData): Promise<AuthResponse> {
+export async function login(credentials: LoginCredentials): Promise<AuthResponse> {
     const response = await api.post<AuthResponse>('/admin/login', credentials);
     return response.data;
 }
 
 // Get current user from token
-export function getCurrentUser(): User | null {
+export function getCurrentUser(): AdminUser | null {
     if (typeof window === 'undefined') return null;
 
     const userStr = localStorage.getItem('user');
@@ -22,7 +22,7 @@ export function getCurrentUser(): User | null {
 }
 
 // Save user session
-export function saveUserSession(token: string, user: User): void {
+export function saveUserSession(token: string, user: AdminUser): void {
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(user));
 }
@@ -40,7 +40,7 @@ export function isAuthenticated(): boolean {
 }
 
 // Check if user has required role
-export function hasRole(user: User | null, roles: string[]): boolean {
+export function hasRole(user: AdminUser | null, roles: string[]): boolean {
     if (!user) return false;
     return roles.includes(user.role);
 }

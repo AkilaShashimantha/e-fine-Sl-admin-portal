@@ -8,26 +8,37 @@ import {
     LayoutDashboard,
     FileText,
     Users,
-    Shield,
     CreditCard,
-    BarChart3,
+    Settings,
     LogOut,
-    AlertTriangle
+    ShieldAlert,
+    Car,
+    AlertTriangle,
+    UserCog,
+    BarChart3
 } from 'lucide-react';
-
-const navigation = [
-    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-    { name: 'Fines', href: '/fines', icon: FileText },
-    { name: 'Offenses', href: '/offenses', icon: AlertTriangle },
-    { name: 'Drivers', href: '/drivers', icon: Users },
-    { name: 'Officers', href: '/officers', icon: Shield },
-    { name: 'Payments', href: '/payments', icon: CreditCard },
-    { name: 'Reports', href: '/reports', icon: BarChart3 },
-];
 
 export function Sidebar() {
     const pathname = usePathname();
     const { user, logout } = useAuth();
+
+    const navigation = [
+        { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+        { name: 'Fines', href: '/fines', icon: FileText },
+        { name: 'Offenses', href: '/offenses', icon: AlertTriangle },
+        { name: 'Drivers', href: '/drivers', icon: Car },
+        { name: 'Officers', href: '/officers', icon: ShieldAlert },
+        { name: 'Payments', href: '/payments', icon: CreditCard },
+        { name: 'Reports', href: '/reports', icon: BarChart3 },
+    ];
+
+    // Add Admin Management for Super Admin
+    if (user?.role === 'super_admin') {
+        navigation.push({ name: 'Admins', href: '/admins', icon: UserCog });
+    }
+
+    // Add Settings for everyone
+    navigation.push({ name: 'Settings', href: '/settings', icon: Settings });
 
     return (
         <div className="flex h-screen w-64 flex-col bg-gray-900 text-white">
@@ -68,7 +79,7 @@ export function Sidebar() {
                     </p>
                 </div>
                 <button
-                    onClick={logout}
+                    onClick={() => logout()}
                     className="flex w-full items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium transition-colors hover:bg-red-700"
                 >
                     <LogOut className="h-4 w-4" />
