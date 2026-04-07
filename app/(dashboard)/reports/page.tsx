@@ -20,17 +20,16 @@ export default function ReportsPage() {
             const response = await api.post('/admin/reports/monthly-fines', {
                 month,
                 year
-            });
+            }, { responseType: 'blob' });
 
             toast.success('Report generated successfully');
 
-            // Create JSON download
-            const dataStr = JSON.stringify(response.data.report, null, 2);
-            const blob = new Blob([dataStr], { type: 'application/json' });
+            // Create PDF download
+            const blob = new Blob([response.data], { type: 'application/pdf' });
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `monthly-fines-${year}-${month}.json`;
+            link.download = `monthly-fines-${year}-${month}.pdf`;
             link.click();
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Failed to generate report');
@@ -49,17 +48,16 @@ export default function ReportsPage() {
             const response = await api.post('/admin/reports/payments', {
                 startDate,
                 endDate
-            });
+            }, { responseType: 'blob' });
 
             toast.success('Report generated successfully');
 
-            // Create JSON download
-            const dataStr = JSON.stringify(response.data.report, null, 2);
-            const blob = new Blob([dataStr], { type: 'application/json' });
+            // Create PDF download
+            const blob = new Blob([response.data], { type: 'application/pdf' });
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `payment-report-${year}-${month}.json`;
+            link.download = `payment-report-${year}-${month}.pdf`;
             link.click();
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Failed to generate report');
@@ -215,7 +213,7 @@ export default function ReportsPage() {
 
                     <div className="text-sm text-gray-500 bg-blue-50 p-4 rounded-md">
                         <p className="font-medium text-blue-900 mb-1">Note:</p>
-                        <p>Reports will be downloaded as JSON files. You can open them in any text editor or import into Excel/Google Sheets for analysis.</p>
+                        <p>Reports will be downloaded as PDF files containing well-formatted tables and summary statistics.</p>
                     </div>
                 </CardContent>
             </Card>
