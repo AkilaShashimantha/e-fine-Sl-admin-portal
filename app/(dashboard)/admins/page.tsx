@@ -14,7 +14,6 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
 } from '@/components/ui/dialog';
 import {
     Select,
@@ -23,17 +22,20 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { Plus, Trash2, ShieldCheck, ShieldAlert, CheckCircle2, QrCode, Eye, EyeOff } from 'lucide-react';
+import { Plus, Trash2, ShieldCheck, ShieldAlert, CheckCircle2, QrCode, Eye, EyeOff, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { USER_ROLES } from '@/lib/constants';
 
 interface AdminUser {
     id: string;
+    _id?: string;
     name: string;
     email: string;
     role: string;
     isTwoFactorEnabled: boolean;
+    isActive?: boolean;
+    lastLogin?: string;
 }
 
 export default function AdminsPage() {
@@ -41,16 +43,22 @@ export default function AdminsPage() {
     const [admins, setAdmins] = useState<AdminUser[]>([]);
     const [loading, setLoading] = useState(true);
 
+    // Edit/Delete State
+    const [isEditMode, setIsEditMode] = useState(false);
+    const [selectedAdminId, setSelectedAdminId] = useState<string | null>(null);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
     // Dialog State
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [step, setStep] = useState(1); // 1: Details, 2: 2FA Setup
 
-    // Registration Data
+    // Registration/Edit Data
     const [formData, setFormData] = useState({
         name: '',
         email: '',
         password: '',
-        role: 'admin_officer'
+        role: 'admin_officer',
+        isActive: true
     });
 
     // 2FA Setup Data (Temporary)
@@ -60,6 +68,27 @@ export default function AdminsPage() {
     const [isRegistering, setIsRegistering] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [emailError, setEmailError] = useState('');
+
+    useEffect(() => {
+        if (user?.role === USER_ROLES.SUPER_ADMIN) {
+            fetchAdmins();
+        }
+    }, [user]);
+
+    const fetchAdmins = async () => {
+        try {
+            setLoading(true);
+            const response = await api.get('/admin/all');
+            if (response.data.success) {
+                setAdmins(response.data.data);
+            }
+        } catch (error) {
+            console.error('Failed to load admins', error);
+            toast.error('Failed to load admins');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const validateEmail = (email: string) => {
         const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -97,17 +126,38 @@ export default function AdminsPage() {
     }
 
     const handleOpenDialog = () => {
+        setIsEditMode(false);
         setStep(1);
-        setFormData({ name: '', email: '', password: '', role: 'admin_officer' });
+        setFormData({ name: '', email: '', password: '', role: 'admin_officer', isActive: true });
         setTempSecret('');
         setQrCodeUrl('');
         setVerificationCode('');
+        setEmailError('');
+        setSelectedAdminId(null);
+        setIsDialogOpen(true);
+    };
+
+    const handleOpenEditDialog = (admin: AdminUser) => {
+        setIsEditMode(true);
+        setFormData({
+            name: admin.name,
+            email: admin.email,
+            password: '', 
+            role: admin.role,
+            isActive: admin.isActive ?? true
+        });
+        setSelectedAdminId(admin._id || admin.id);
+        setStep(1); 
         setEmailError('');
         setIsDialogOpen(true);
     };
 
     const handleInitRegistration = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (isEditMode) {
+            return handleEditAdmin(e);
+        }
 
         if (!formData.name || !formData.email || !formData.password) {
             toast.error('Please fill in all fields');
@@ -154,12 +204,58 @@ export default function AdminsPage() {
 
             toast.success('Admin registered successfully with 2FA enabled');
             setIsDialogOpen(false);
-            // Reset form
-            setFormData({ name: '', email: '', password: '', role: 'admin_officer' });
+            setFormData({ name: '', email: '', password: '', role: 'admin_officer', isActive: true });
+            fetchAdmins();
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Verification failed. Please try again.');
         } finally {
             setIsRegistering(false);
+        }
+    };
+
+    const handleEditAdmin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedAdminId) return;
+
+        if (!formData.name || !formData.email) {
+            toast.error('Please fill in required fields');
+            return;
+        }
+
+        if (!validateEmail(formData.email)) {
+            toast.error('Please enter a valid email address');
+            return;
+        }
+
+        try {
+            setIsRegistering(true);
+            await api.put(`/admin/${selectedAdminId}`, {
+                name: formData.name,
+                email: formData.email,
+                role: formData.role,
+                isActive: formData.isActive
+            });
+            toast.success('Admin updated successfully');
+            fetchAdmins();
+            setIsDialogOpen(false);
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Failed to update admin');
+        } finally {
+            setIsRegistering(false);
+        }
+    };
+
+    const handleDeleteAdmin = async () => {
+        if (!selectedAdminId) return;
+        try {
+            await api.delete(`/admin/${selectedAdminId}`);
+            toast.success('Admin deleted successfully');
+            fetchAdmins();
+            setIsDeleteDialogOpen(false);
+            setSelectedAdminId(null);
+        } catch (error: any) {
+             toast.error(error.response?.data?.message || 'Failed to delete admin');
+             setIsDeleteDialogOpen(false);
         }
     };
 
@@ -187,26 +283,109 @@ export default function AdminsPage() {
                 </div>
             </div>
 
-            {/* Admin List Placeholder */}
             <Card>
                 <CardHeader>
                     <CardTitle>System Administrators</CardTitle>
                     <CardDescription>Accounts with administrative access to the portal</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="text-center py-12 text-gray-500 border-2 border-dashed rounded-lg">
-                        <p>Admin list functionality coming soon.</p>
-                        <p className="text-sm mt-2">Use the "Add Admin Officer" button to create verified accounts.</p>
-                    </div>
+                    {loading ? (
+                        <div className="text-center py-12 text-gray-500">Loading admins...</div>
+                    ) : admins.length === 0 ? (
+                        <div className="text-center py-12 text-gray-500 border-2 border-dashed rounded-lg">
+                            <p>No admins found.</p>
+                            <p className="text-sm mt-2">Use the "Add Admin Officer" button to create verified accounts.</p>
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left">
+                                <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b">
+                                    <tr>
+                                        <th className="px-4 py-3">Name</th>
+                                        <th className="px-4 py-3">Email</th>
+                                        <th className="px-4 py-3">Role</th>
+                                        <th className="px-4 py-3">Status</th>
+                                        <th className="px-4 py-3">Last Login</th>
+                                        <th className="px-4 py-3 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {admins.map((admin) => (
+                                        <tr key={admin._id || admin.id} className="border-b hover:bg-gray-50">
+                                            <td className="px-4 py-3 font-medium text-gray-900">{admin.name}</td>
+                                            <td className="px-4 py-3 text-gray-600">{admin.email}</td>
+                                            <td className="px-4 py-3">
+                                                <Badge variant={admin.role === 'super_admin' ? 'default' : 'secondary'}>
+                                                    {admin.role.replace('_', ' ').toUpperCase()}
+                                                </Badge>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {admin.isActive ? (
+                                                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Active</Badge>
+                                                ) : (
+                                                    <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Inactive</Badge>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3 text-gray-500">
+                                                {admin.lastLogin ? new Date(admin.lastLogin).toLocaleString() : 'Never logged in'}
+                                            </td>
+                                            <td className="px-4 py-3 text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <Button 
+                                                        variant="outline" 
+                                                        size="sm"
+                                                        onClick={() => handleOpenEditDialog(admin)}
+                                                    >
+                                                        <Pencil className="h-4 w-4 mr-1" /> Edit
+                                                    </Button>
+                                                    <Button 
+                                                        variant="destructive" 
+                                                        size="sm"
+                                                        onClick={() => {
+                                                            setSelectedAdminId(admin._id || admin.id);
+                                                            setIsDeleteDialogOpen(true);
+                                                        }}
+                                                        disabled={admin.role === 'super_admin'}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 
-            {/* Add Admin Modal with Enforced 2FA */}
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Confirm Deletion</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to delete this admin account? This action cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>Cancel</Button>
+                        <Button variant="destructive" onClick={handleDeleteAdmin}>Delete Admin</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Add/Edit Admin Modal with Enforced 2FA */}
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent className="sm:max-w-[450px]">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
-                            {step === 1 ? (
+                            {isEditMode ? (
+                                <>
+                                    <Pencil className="h-5 w-5" /> Edit Admin
+                                </>
+                            ) : step === 1 ? (
                                 <>
                                     <Plus className="h-5 w-5" /> Add New Admin
                                 </>
@@ -217,7 +396,9 @@ export default function AdminsPage() {
                             )}
                         </DialogTitle>
                         <DialogDescription>
-                            {step === 1
+                            {isEditMode 
+                                ? 'Modify the details for this admin account.'
+                                : step === 1
                                 ? 'Enter account details. You will need to verify 2FA in the next step.'
                                 : 'Registration incomplete. Scan the QR code to verify and activate the account.'}
                         </DialogDescription>
@@ -254,38 +435,37 @@ export default function AdminsPage() {
                                 )}
                             </div>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="password">Password</Label>
-                                <div className="relative">
-                                    <Input
-                                        id="password"
-                                        type={showPassword ? 'text' : 'password'}
-                                        value={formData.password}
-                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                        placeholder="Minimum 6 characters"
-                                        required
-                                        minLength={6}
-                                        className="pr-10"
-                                    />
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        tabIndex={-1}
-                                    >
-                                        {showPassword ? (
-                                            <EyeOff className="h-4 w-4 text-gray-500" />
-                                        ) : (
-                                            <Eye className="h-4 w-4 text-gray-500" />
-                                        )}
-                                        <span className="sr-only">
-                                            {showPassword ? 'Hide password' : 'Show password'}
-                                        </span>
-                                    </Button>
+                            {!isEditMode && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="password">Password</Label>
+                                    <div className="relative">
+                                        <Input
+                                            id="password"
+                                            type={showPassword ? 'text' : 'password'}
+                                            value={formData.password}
+                                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                            placeholder="Minimum 6 characters"
+                                            required={!isEditMode}
+                                            minLength={6}
+                                            className="pr-10"
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            tabIndex={-1}
+                                        >
+                                            {showPassword ? (
+                                                <EyeOff className="h-4 w-4 text-gray-500" />
+                                            ) : (
+                                                <Eye className="h-4 w-4 text-gray-500" />
+                                            )}
+                                        </Button>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
 
                             <div className="space-y-2">
                                 <Label htmlFor="role">Role</Label>
@@ -297,16 +477,35 @@ export default function AdminsPage() {
                                         <SelectValue placeholder="Select Role" />
                                     </SelectTrigger>
                                     <SelectContent>
+                                        <SelectItem value="super_admin" disabled={!isEditMode || formData.role !== 'super_admin'}>Super Admin</SelectItem>
                                         <SelectItem value="admin_officer">Admin Officer</SelectItem>
                                         <SelectItem value="finance_officer">Finance Officer</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
 
+                            {isEditMode && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="isActive">Account Status</Label>
+                                    <Select
+                                        value={formData.isActive.toString()}
+                                        onValueChange={(val) => setFormData({ ...formData, isActive: val === 'true' })}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select Status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="true">Active</SelectItem>
+                                            <SelectItem value="false">Inactive</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+
                             <DialogFooter className="mt-4">
                                 <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
                                 <Button type="submit" disabled={isRegistering}>
-                                    {isRegistering ? 'Processing...' : 'Next: Setup 2FA'}
+                                    {isRegistering ? 'Processing...' : isEditMode ? 'Save Changes' : 'Next: Setup 2FA'}
                                 </Button>
                             </DialogFooter>
                         </form>
