@@ -10,7 +10,7 @@ interface AuthContextType {
     user: AdminUser | null;
     loading: boolean;
     login: (credentials: LoginCredentials, totpToken?: string) => Promise<boolean | { requireTwoFactor: boolean }>;
-    logout: (force?: boolean) => void;
+    logout: (force?: boolean) => Promise<void>;
     updateUser: (userData: AdminUser) => void;
 }
 
@@ -34,15 +34,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         try {
-            // In a real app, you might want a /me endpoint to validate token and get user data
-            // For now, we'll decode the token or rely on stored user data if valid
             const storedUser = localStorage.getItem('user');
             if (storedUser) {
                 setUser(JSON.parse(storedUser));
             }
         } catch (error) {
             console.error('Auth check failed:', error);
-            logout(true);
+            localStorage.removeItem('token');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('sessionToken');
+            localStorage.removeItem('user');
+            setUser(null);
         } finally {
             setLoading(false);
         }
@@ -55,9 +57,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 totpToken
             });
 
-            const { token, user } = response.data;
+            const { token, accessToken, refreshToken, sessionToken, user } = response.data;
 
-            localStorage.setItem('token', token);
+            // Store all tokens
+            localStorage.setItem('token', accessToken || token);
+            localStorage.setItem('refreshToken', refreshToken || '');
+            localStorage.setItem('sessionToken', sessionToken || '');
             localStorage.setItem('user', JSON.stringify(user));
             setUser(user);
 
@@ -76,18 +81,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const logout = (force?: boolean) => {
-        if (force !== true && user && !user.isTwoFactorEnabled) {
-            toast.error("You must enable Two-Factor Authentication before you can log out.");
-            router.push('/settings');
-            return;
+    const logout = async (force?: boolean) => {
+        try {
+            const sessionToken = localStorage.getItem('sessionToken');
+            if (sessionToken) {
+                // Revoke the session in the DB
+                await api.post('/admin/logout', { sessionToken });
+            }
+        } catch (err) {
+            // Always clear local state even if API call fails
+            console.warn('Logout API call failed, clearing local session anyway.');
+        } finally {
+            localStorage.removeItem('token');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('sessionToken');
+            localStorage.removeItem('user');
+            setUser(null);
+            router.push('/login');
+            toast.success('Logged out successfully');
         }
-
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        setUser(null);
-        router.push('/login');
-        toast.success('Logged out successfully');
     };
 
     const updateUser = (userData: AdminUser) => {
