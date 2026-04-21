@@ -15,7 +15,9 @@ export default function FinesPage() {
     const [fines, setFines] = useState<IssuedFine[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
-    const [statusFilter, setStatusFilter] = useState<'all' | 'Paid' | 'Unpaid'>('all');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'PAID' | 'UNPAID'>('all');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
 
@@ -25,6 +27,8 @@ export default function FinesPage() {
             const params: any = { page, limit: 20 };
             if (search) params.search = search;
             if (statusFilter !== 'all') params.status = statusFilter;
+            if (startDate) params.startDate = startDate;
+            if (endDate) params.endDate = endDate;
 
             const response = await api.get(`/admin/fines`, { params });
             setFines(response.data.data);
@@ -39,7 +43,7 @@ export default function FinesPage() {
 
     useEffect(() => {
         fetchFines();
-    }, [page, search, statusFilter]);
+    }, [page, search, statusFilter, startDate, endDate]);
 
     return (
         <div className="space-y-6">
@@ -54,29 +58,67 @@ export default function FinesPage() {
                 <CardHeader>
                     <div className="flex items-center justify-between">
                         <CardTitle>All Fines ({total})</CardTitle>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-3">
+                            {/* Date Pickers */}
+                            <div className="flex items-center gap-2">
+                                <Input
+                                    type="date"
+                                    className="w-40"
+                                    value={startDate}
+                                    onChange={(e) => {
+                                        setStartDate(e.target.value);
+                                        setPage(1);
+                                    }}
+                                    placeholder="Start Date"
+                                />
+                                <span className="text-gray-400">to</span>
+                                <Input
+                                    type="date"
+                                    className="w-40"
+                                    value={endDate}
+                                    onChange={(e) => {
+                                        setEndDate(e.target.value);
+                                        setPage(1);
+                                    }}
+                                    placeholder="End Date"
+                                />
+                                {(startDate || endDate) && (
+                                    <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        onClick={() => {
+                                            setStartDate('');
+                                            setEndDate('');
+                                        }}
+                                        className="text-xs h-9"
+                                    >
+                                        Clear
+                                    </Button>
+                                )}
+                            </div>
+
                             {/* Status Filter */}
                             <select
                                 value={statusFilter}
                                 onChange={(e) => setStatusFilter(e.target.value as any)}
-                                className="px-3 py-2 border rounded-md text-sm"
+                                className="px-3 py-2 border rounded-md text-sm h-10"
                             >
                                 <option value="all">All Status</option>
-                                <option value="Paid">Paid</option>
-                                <option value="Unpaid">Unpaid</option>
+                                <option value="PAID">Paid</option>
+                                <option value="UNPAID">Unpaid</option>
                             </select>
-
-                            {/* Search */}
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                                <Input
-                                    placeholder="Search by license, vehicle..."
-                                    className="pl-9 w-80"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                />
-                            </div>
-                        </div>
+ 
+                             {/* Search */}
+                             <div className="relative">
+                                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                                 <Input
+                                     placeholder="Search by license, vehicle, location, officer..."
+                                     className="pl-9 w-64 h-10"
+                                     value={search}
+                                     onChange={(e) => setSearch(e.target.value)}
+                                 />
+                             </div>
+                         </div>
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -95,6 +137,7 @@ export default function FinesPage() {
                                         <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Offense</th>
                                         <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Location</th>
                                         <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Amount</th>
+                                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Officer ID</th>
                                         <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Status</th>
                                     </tr>
                                 </thead>
@@ -107,8 +150,12 @@ export default function FinesPage() {
                                             <td className="px-4 py-3 text-sm">{fine.offenseName}</td>
                                             <td className="px-4 py-3 text-sm">{fine.place}</td>
                                             <td className="px-4 py-3 text-sm font-semibold">{formatCurrency(fine.amount)}</td>
+                                            <td className="px-4 py-3 text-sm text-gray-500 font-mono">{fine.policeOfficerId || 'N/A'}</td>
                                             <td className="px-4 py-3">
-                                                <Badge variant={fine.status === 'Paid' ? 'default' : 'destructive'}>
+                                                <Badge 
+                                                    className={fine.status === 'PAID' ? 'bg-emerald-900 hover:bg-emerald-800 text-white' : ''}
+                                                    variant={fine.status === 'PAID' ? 'default' : 'destructive'}
+                                                >
                                                     {fine.status}
                                                 </Badge>
                                             </td>
